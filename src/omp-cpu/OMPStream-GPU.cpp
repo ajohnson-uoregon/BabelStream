@@ -22,7 +22,6 @@ OMPStream<T>::OMPStream(const int ARRAY_SIZE, int device)
   this->b = (T*)aligned_alloc(ALIGNMENT, sizeof(T)*array_size);
   this->c = (T*)aligned_alloc(ALIGNMENT, sizeof(T)*array_size);
 
-#ifdef OMP_TARGET_GPU
   omp_set_default_device(device);
   T *a = this->a;
   T *b = this->b;
@@ -30,14 +29,12 @@ OMPStream<T>::OMPStream(const int ARRAY_SIZE, int device)
   // Set up data region on device
   #pragma omp target enter data map(alloc: a[0:array_size], b[0:array_size], c[0:array_size])
   {}
-#endif
 
 }
 
 template <class T>
 OMPStream<T>::~OMPStream()
 {
-#ifdef OMP_TARGET_GPU
   // End data region on device
   int array_size = this->array_size;
   T *a = this->a;
@@ -45,7 +42,7 @@ OMPStream<T>::~OMPStream()
   T *c = this->c;
   #pragma omp target exit data map(release: a[0:array_size], b[0:array_size], c[0:array_size])
   {}
-#endif
+
   free(a);
   free(b);
   free(c);
@@ -55,38 +52,27 @@ template <class T>
 void OMPStream<T>::init_arrays(T initA, T initB, T initC)
 {
   int array_size = this->array_size;
-#ifdef OMP_TARGET_GPU
+
   T *a = this->a;
   T *b = this->b;
   T *c = this->c;
   #pragma omp target teams distribute parallel for simd
-#else
-  #pragma omp parallel for
-#endif
   for (int i = 0; i < array_size; i++)
   {
     a[i] = initA;
     b[i] = initB;
     c[i] = initC;
   }
-  #if defined(OMP_TARGET_GPU) && defined(_CRAYC)
-  // If using the Cray compiler, the kernels do not block, so this update forces
-  // a small copy to ensure blocking so that timing is correct
-  #pragma omp target update from(a[0:0])
-  #endif
 }
 
 template <class T>
 void OMPStream<T>::read_arrays(std::vector<T>& h_a, std::vector<T>& h_b, std::vector<T>& h_c)
 {
-
-#ifdef OMP_TARGET_GPU
   T *a = this->a;
   T *b = this->b;
   T *c = this->c;
   #pragma omp target update from(a[0:array_size], b[0:array_size], c[0:array_size])
   {}
-#endif
 
   #pragma omp parallel for
   for (int i = 0; i < array_size; i++)
@@ -101,23 +87,14 @@ void OMPStream<T>::read_arrays(std::vector<T>& h_a, std::vector<T>& h_b, std::ve
 template <class T>
 void OMPStream<T>::copy()
 {
-#ifdef OMP_TARGET_GPU
   int array_size = this->array_size;
   T *a = this->a;
   T *c = this->c;
   #pragma omp target teams distribute parallel for simd
-#else
-  #pragma omp parallel for
-#endif
   for (int i = 0; i < array_size; i++)
   {
     c[i] = a[i];
   }
-  #if defined(OMP_TARGET_GPU) && defined(_CRAYC)
-  // If using the Cray compiler, the kernels do not block, so this update forces
-  // a small copy to ensure blocking so that timing is correct
-  #pragma omp target update from(a[0:0])
-  #endif
 }
 
 template <class T>
@@ -125,46 +102,28 @@ void OMPStream<T>::mul()
 {
   const T scalar = startScalar;
 
-#ifdef OMP_TARGET_GPU
   int array_size = this->array_size;
   T *b = this->b;
   T *c = this->c;
   #pragma omp target teams distribute parallel for simd
-#else
-  #pragma omp parallel for
-#endif
   for (int i = 0; i < array_size; i++)
   {
     b[i] = scalar * c[i];
   }
-  #if defined(OMP_TARGET_GPU) && defined(_CRAYC)
-  // If using the Cray compiler, the kernels do not block, so this update forces
-  // a small copy to ensure blocking so that timing is correct
-  #pragma omp target update from(c[0:0])
-  #endif
 }
 
 template <class T>
 void OMPStream<T>::add()
 {
-#ifdef OMP_TARGET_GPU
   int array_size = this->array_size;
   T *a = this->a;
   T *b = this->b;
   T *c = this->c;
   #pragma omp target teams distribute parallel for simd
-#else
-  #pragma omp parallel for
-#endif
   for (int i = 0; i < array_size; i++)
   {
     c[i] = a[i] + b[i];
   }
-  #if defined(OMP_TARGET_GPU) && defined(_CRAYC)
-  // If using the Cray compiler, the kernels do not block, so this update forces
-  // a small copy to ensure blocking so that timing is correct
-  #pragma omp target update from(a[0:0])
-  #endif
 }
 
 template <class T>
@@ -172,24 +131,15 @@ void OMPStream<T>::triad()
 {
   const T scalar = startScalar;
 
-#ifdef OMP_TARGET_GPU
   int array_size = this->array_size;
   T *a = this->a;
   T *b = this->b;
   T *c = this->c;
   #pragma omp target teams distribute parallel for simd
-#else
-  #pragma omp parallel for
-#endif
   for (int i = 0; i < array_size; i++)
   {
     a[i] = b[i] + scalar * c[i];
   }
-  #if defined(OMP_TARGET_GPU) && defined(_CRAYC)
-  // If using the Cray compiler, the kernels do not block, so this update forces
-  // a small copy to ensure blocking so that timing is correct
-  #pragma omp target update from(a[0:0])
-  #endif
 }
 
 template <class T>
@@ -197,24 +147,15 @@ void OMPStream<T>::nstream()
 {
   const T scalar = startScalar;
 
-#ifdef OMP_TARGET_GPU
   int array_size = this->array_size;
   T *a = this->a;
   T *b = this->b;
   T *c = this->c;
   #pragma omp target teams distribute parallel for simd
-#else
-  #pragma omp parallel for
-#endif
   for (int i = 0; i < array_size; i++)
   {
     a[i] += b[i] + scalar * c[i];
   }
-  #if defined(OMP_TARGET_GPU) && defined(_CRAYC)
-  // If using the Cray compiler, the kernels do not block, so this update forces
-  // a small copy to ensure blocking so that timing is correct
-  #pragma omp target update from(a[0:0])
-  #endif
 }
 
 template <class T>
@@ -222,14 +163,10 @@ T OMPStream<T>::dot()
 {
   T sum = 0.0;
 
-#ifdef OMP_TARGET_GPU
   int array_size = this->array_size;
   T *a = this->a;
   T *b = this->b;
   #pragma omp target teams distribute parallel for simd map(tofrom: sum) reduction(+:sum)
-#else
-  #pragma omp parallel for reduction(+:sum)
-#endif
   for (int i = 0; i < array_size; i++)
   {
     sum += a[i] * b[i];
@@ -242,7 +179,6 @@ T OMPStream<T>::dot()
 
 void listDevices(void)
 {
-#ifdef OMP_TARGET_GPU
   // Get number of devices
   int count = omp_get_num_devices();
 
@@ -255,9 +191,6 @@ void listDevices(void)
   {
     std::cout << "There are " << count << " devices." << std::endl;
   }
-#else
-  std::cout << "0: CPU" << std::endl;
-#endif
 }
 
 std::string getDeviceName(const int)

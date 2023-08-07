@@ -75,7 +75,8 @@ set(CXX_EXTRA_LINK_FLAGS ${CXX_EXTRA_FLAGS} ${CXX_EXTRA_LINK_FLAGS})
 include(cmake/register_models.cmake)
 
 # register out models <model_name> <preprocessor_def_name> <source files...>
-register_model(omp OMP OMPStream.cpp)
+register_model(omp-cpu OMP OMPStream-CPU.cpp)
+register_model(omp-gpu OMP OMPStream-GPU.cpp)
 register_model(ocl OCL OCLStream.cpp)
 register_model(std-data STD_DATA STDDataStream.cpp)
 register_model(std-indices STD_INDICES STDIndicesStream.cpp)
