@@ -9,7 +9,6 @@
 #include <iostream>
 #include <stdexcept>
 
-#include <Kokkos_Core.hpp>
 #include <sycl/sycl.hpp>
 
 #include "Stream.h"

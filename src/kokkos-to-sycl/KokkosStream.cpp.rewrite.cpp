@@ -79,19 +79,19 @@ void KokkosStream<T>::init_arrays(T initA, T initB, T initC)
 {
 
     queue->submit([&] (sycl::handler &cgh) {
-      sycl::accessor accessor_a {a};
+      sycl::accessor accessor_a {a, cgh};
 
 
 
 
 
-      sycl::accessor accessor_b {b};
+      sycl::accessor accessor_b {b, cgh};
 
 
 
 
 
-      sycl::accessor accessor_c {c};
+      sycl::accessor accessor_c {c, cgh};
 
       cgh.parallel_for(sycl::range<1>{array_size}, [=](sycl::id<1> index) {
     accessor_a[index] = initA;
@@ -128,19 +128,19 @@ void KokkosStream<T>::copy()
 {
 
     queue->submit([&] (sycl::handler &cgh) {
-      sycl::accessor accessor_a {a};
+      sycl::accessor accessor_a {a, cgh};
 
 
 
 
 
-      sycl::accessor accessor_b {b};
+      sycl::accessor accessor_b {b, cgh};
 
 
 
 
 
-      sycl::accessor accessor_c {c};
+      sycl::accessor accessor_c {c, cgh};
       cgh.parallel_for(sycl::range<1>{array_size}, [=](sycl::id<1> index) {
     accessor_c[index] = accessor_a[index];
   });
@@ -163,19 +163,19 @@ void KokkosStream<T>::mul()
 
 
     queue->submit([&] (sycl::handler &cgh) {
-      sycl::accessor accessor_a {a};
+      sycl::accessor accessor_a {a, cgh};
 
 
 
 
 
-      sycl::accessor accessor_b {b};
+      sycl::accessor accessor_b {b, cgh};
 
 
 
 
 
-      sycl::accessor accessor_c {c};
+      sycl::accessor accessor_c {c, cgh};
       cgh.parallel_for(sycl::range<1>{array_size}, [=](sycl::id<1> index) {
     accessor_b[index] = scalar*accessor_c[index];
   });
@@ -203,19 +203,19 @@ void KokkosStream<T>::add()
 
 
     queue->submit([&] (sycl::handler &cgh) {
-      sycl::accessor accessor_a {a};
+      sycl::accessor accessor_a {a, cgh};
 
 
 
 
 
-      sycl::accessor accessor_b {b};
+      sycl::accessor accessor_b {b, cgh};
 
 
 
 
 
-      sycl::accessor accessor_c {c};
+      sycl::accessor accessor_c {c, cgh};
       cgh.parallel_for(sycl::range<1>{array_size}, [=](sycl::id<1> index) {
     accessor_c[index] = accessor_a[index] + accessor_b[index];
   });
@@ -244,19 +244,19 @@ void KokkosStream<T>::triad()
 
 
     queue->submit([&] (sycl::handler &cgh) {
-        sycl::accessor accessor_a {a};
+        sycl::accessor accessor_a {a, cgh};
 
 
 
 
 
-        sycl::accessor accessor_b {b};
+        sycl::accessor accessor_b {b, cgh};
 
 
 
 
 
-        sycl::accessor accessor_c {c};
+        sycl::accessor accessor_c {c, cgh};
       cgh.parallel_for(sycl::range<1>{array_size}, [=](sycl::id<1> index) {
     accessor_a[index] = accessor_b[index] + scalar*accessor_c[index];
   });
@@ -279,19 +279,19 @@ void KokkosStream<T>::nstream()
 
 
     queue->submit([&] (sycl::handler &cgh) {
-      sycl::accessor accessor_a {a};
+      sycl::accessor accessor_a {a, cgh};
 
 
 
 
 
-      sycl::accessor accessor_b {b};
+      sycl::accessor accessor_b {b, cgh};
 
 
 
 
 
-      sycl::accessor accessor_c {c};
+      sycl::accessor accessor_c {c, cgh};
       cgh.parallel_for(sycl::range<1>{array_size}, [=](sycl::id<1> index) {
     accessor_a[index] += accessor_b[index] + scalar*accessor_c[index];
   });
@@ -311,8 +311,8 @@ T KokkosStream<T>::dot()
 
   queue->submit([&](sycl::handler &cgh)
   {
-    sycl::accessor ka {a};
-    sycl::accessor kb {b};
+    sycl::accessor ka {a, cgh};
+    sycl::accessor kb {b, cgh};
 
     cgh.parallel_for(sycl::range<1>{array_size},
       // Reduction object, to perform summation - initialises the result to zero
@@ -331,6 +331,13 @@ T KokkosStream<T>::dot()
 
 }
 
+void getDeviceList(void)
+{
+  // Ask SYCL runtime for all devices in system
+  devices = sycl::device::get_devices();
+  cached = true;
+}
+
 void listDevices(void)
 {
   std::cout << "Kokkos library for " << getDeviceName(0) << std::endl;
@@ -339,7 +346,7 @@ void listDevices(void)
 
 std::string getDeviceName(const int device)
 {
-  return typeid (Kokkos::DefaultExecutionSpace).name();
+  return "";
 }
 
 

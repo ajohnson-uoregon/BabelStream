@@ -1,40 +1,86 @@
 
 register_flag_optional(CMAKE_CXX_COMPILER
-        "Any CXX compiler that is supported by CMake detection and RAJA.
-         See https://github.com/kokkos/kokkos#primary-tested-compilers-on-x86-are"
+        "Any CXX compiler that is supported by CMake detection, this is used for host compilation when required by the SYCL compiler"
         "c++")
 
-register_flag_required(KOKKOS_IN_TREE
-        "Absolute path to the *source* distribution directory of Kokkos.
-         Remember to append Kokkos specific flags as well, for example:
+register_flag_required(SYCL_COMPILER
+        "Compile using the specified SYCL compiler implementation
+        Supported values are
+           ONEAPI-DPCPP - dpc++ that is part of an oneAPI Base Toolkit distribution (https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
+           DPCPP        - dpc++ as a standalone compiler (https://github.com/intel/llvm)
+           HIPSYCL      - hipSYCL compiler (https://github.com/illuhad/hipSYCL)
+           COMPUTECPP   - ComputeCpp compiler (https://developer.codeplay.com/products/computecpp/ce/home)")
 
-             -DKOKKOS_IN_TREE=... -DKokkos_ENABLE_OPENMP=ON -DKokkos_ARCH_ZEN=ON ...
+register_flag_optional(SYCL_COMPILER_DIR
+        "Absolute path to the selected SYCL compiler directory, most are packaged differently so set the path according to `SYCL_COMPILER`:
+           ONEAPI-DPCPP             - not required but `dpcpp` must be on PATH, load oneAPI as per documentation (i.e `source /opt/intel/oneapi/setvars.sh` first)
+           HIPSYCL|DPCPP|COMPUTECPP - set to the root of the binary distribution that contains at least `bin/`, `include/`, and `lib/`"
+        "")
 
-         See https://github.com/kokkos/kokkos/blob/master/BUILD.md for all available options")
-
-# compiler vendor and arch specific flags
-set(KOKKOS_FLAGS_CPU_INTEL -qopt-streaming-stores=always)
+register_flag_optional(OpenCL_LIBRARY
+        "[ComputeCpp only] Path to OpenCL library, usually called libOpenCL.so"
+        "${OpenCL_LIBRARY}")
 
 macro(setup)
+    set(CMAKE_CXX_STANDARD 17)
 
-    set(CMAKE_CXX_STANDARD 14)
-    cmake_policy(SET CMP0074 NEW) #see https://github.com/kokkos/kokkos/blob/master/BUILD.md
 
-    message(STATUS "Building using in-tree Kokkos source at `${KOKKOS_IN_TREE}`")
+    if (${SYCL_COMPILER} STREQUAL "HIPSYCL")
 
-    if (EXISTS "${KOKKOS_IN_TREE}")
-        add_subdirectory(${KOKKOS_IN_TREE} ${CMAKE_BINARY_DIR}/kokkos)
-        register_link_library(Kokkos::kokkos)
+
+        set(hipSYCL_DIR ${SYCL_COMPILER_DIR}/lib/cmake/hipSYCL)
+
+        if (NOT EXISTS "${hipSYCL_DIR}")
+            message(WARNING "Falling back to hipSYCL < 0.9.0 CMake structure")
+            set(hipSYCL_DIR ${SYCL_COMPILER_DIR}/lib/cmake)
+        endif ()
+        if (NOT EXISTS "${hipSYCL_DIR}")
+            message(FATAL_ERROR "Can't find the appropriate CMake definitions for hipSYCL")
+        endif ()
+
+        # register_definitions(_GLIBCXX_USE_CXX11_ABI=0)
+        find_package(hipSYCL CONFIG REQUIRED)
+        message(STATUS "ok")
+
+    elseif (${SYCL_COMPILER} STREQUAL "COMPUTECPP")
+
+        list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
+        set(ComputeCpp_DIR ${SYCL_COMPILER_DIR})
+
+        setup_opencl_header_includes()
+
+        register_definitions(CL_TARGET_OPENCL_VERSION=220 _GLIBCXX_USE_CXX11_ABI=0)
+        # ComputeCpp needs OpenCL
+        find_package(ComputeCpp REQUIRED)
+
+        # this must come after FindComputeCpp (!)
+        set(COMPUTECPP_USER_FLAGS -O3 -no-serial-memop)
+
+    elseif (${SYCL_COMPILER} STREQUAL "DPCPP")
+        set(CMAKE_CXX_COMPILER ${SYCL_COMPILER_DIR}/bin/clang++)
+        include_directories(${SYCL_COMPILER_DIR}/include/sycl)
+        register_definitions(CL_TARGET_OPENCL_VERSION=220)
+        register_append_cxx_flags(ANY -fsycl)
+        register_append_link_flags(-fsycl)
+    elseif (${SYCL_COMPILER} STREQUAL "ONEAPI-DPCPP")
+        set(CMAKE_CXX_COMPILER dpcpp)
+        register_definitions(CL_TARGET_OPENCL_VERSION=220)
     else ()
-        message(FATAL_ERROR "`${KOKKOS_IN_TREE}` does not exist")
+        message(FATAL_ERROR "SYCL_COMPILER=${SYCL_COMPILER} is unsupported")
     endif ()
-
-    register_append_compiler_and_arch_specific_cxx_flags(
-            KOKKOS_FLAGS_CPU
-            ${CMAKE_CXX_COMPILER_ID}
-            ${CMAKE_SYSTEM_PROCESSOR}
-    )
 
 endmacro()
 
 
+macro(setup_target NAME)
+    if (
+    (${SYCL_COMPILER} STREQUAL "COMPUTECPP") OR
+    (${SYCL_COMPILER} STREQUAL "HIPSYCL"))
+        # so ComputeCpp and hipSYCL has this weird (and bad) CMake usage where they append their
+        # own custom integration header flags AFTER the target has been specified
+        # hence this macro here
+        add_sycl_to_target(
+                TARGET ${NAME}
+                SOURCES ${IMPL_SOURCES})
+    endif ()
+endmacro()

@@ -48,7 +48,7 @@
 #elif defined(SYCL2020)
 #include "SYCLStream2020.h"
 #elif defined(OMP)
-#include "OMPStream.h"
+#include "OMPStream.hpp.rewrite.hpp"
 #endif
 
 // Default size of 2^25
